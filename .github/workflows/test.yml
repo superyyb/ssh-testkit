@@ -1,0 +1,52 @@
+name: Run Tests
+ 
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+ 
+jobs:
+  test:
+    runs-on: ubuntu-latest
+ 
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+ 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+ 
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+ 
+      - name: Start Docker target (SSH + Flask)
+        run: |
+          cd docker
+          docker compose up -d --build
+ 
+      - name: Wait for services to be ready
+        run: sleep 8
+ 
+      - name: Run unit tests
+        run: pytest tests/ -v
+ 
+      - name: Run integration test suite
+        run: python3 run_tests.py --config configs/test_plan.yaml
+ 
+      - name: AI failure diagnostics
+        if: failure()
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python3 scripts/ci_analyze.py
+ 
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-${{ github.run_number }}
+          path: |
+            reports/
+            logs/

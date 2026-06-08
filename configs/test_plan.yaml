@@ -1,0 +1,91 @@
+connection:
+  type: ssh
+  host: localhost
+  port: 2222
+  username: testuser
+  password: testpass
+  max_workers: 4  # run up to 4 tests concurrently; set to 1 for sequential
+ 
+email:
+  enabled: false
+  sender: test-bot@example.com
+  receiver: your-email@example.com
+  subject: "Linux Test Automation Report"
+  smtp_server: localhost
+  smtp_port: 1025
+ 
+monitor:
+  log_path: /home/testuser/app_logs/app.log
+  fail_patterns:
+    - "ERROR"
+    - "FATAL"
+    - "Exception"
+  interval: 2
+ 
+tests:
+  # ── System health ────────────────────────────────────────────────────────
+  - name: Check system uptime
+    command: uptime
+    pass_regex: "load average"
+    fail_regex: "error|failed"
+    timeout: 10
+ 
+  - name: Check disk usage
+    command: df -h
+    pass_regex: "/"
+    fail_regex: "100%|error"
+    timeout: 10
+ 
+  # ── Service validation ───────────────────────────────────────────────────
+  - name: Check web service is running
+    command: pgrep -a python3
+    pass_regex: "server.py"
+    fail_regex: "error"
+    timeout: 10
+ 
+  - name: Check port 8080 is listening
+    command: ss -tlnp | grep 8080
+    pass_regex: "LISTEN"
+    fail_regex: "error"
+    timeout: 10
+ 
+  # ── API response validation ──────────────────────────────────────────────
+  - name: Check API health endpoint
+    command: curl -s http://localhost:8080/health
+    pass_regex: "ok"
+    fail_regex: "refused|error|timeout"
+    timeout: 10
+    retries: 2
+ 
+  - name: Check API status endpoint
+    command: curl -s http://localhost:8080/status
+    pass_regex: "connected"
+    fail_regex: "error|disconnected"
+    timeout: 10
+    retries: 2
+ 
+  - name: Check API metrics endpoint
+    command: curl -s http://localhost:8080/metrics
+    pass_regex: "uptime"
+    fail_regex: "error|refused"
+    timeout: 10
+    retries: 1
+ 
+  # ── Application log validation ───────────────────────────────────────────
+  - name: Check app log for startup success
+    command: cat /home/testuser/app_logs/app.log
+    pass_regex: "startup complete"
+    fail_regex: "ERROR|FATAL|Exception"
+    timeout: 10
+ 
+  # ── Perl log analysis (JSON pipeline) ───────────────────────────────────
+  # parse_log.pl outputs structured JSON → classify_from_perl_json() reads it
+  - name: Perl device log analysis
+    command: perl /home/testuser/parse_log.pl /home/testuser/device_logs/device.log --json
+    parser_type: perl_json
+    timeout: 10
+ 
+  - name: Perl app log analysis
+    command: perl /home/testuser/parse_log.pl /home/testuser/app_logs/app.log --json
+    parser_type: perl_json
+    timeout: 10

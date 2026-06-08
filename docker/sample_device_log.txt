@@ -1,0 +1,7 @@
+2025-01-01 10:00:00 [INFO] Device startup initiated
+2025-01-01 10:00:01 [INFO] Loading configuration...
+2025-01-01 10:00:02 [INFO] Hardware self-check running
+2025-01-01 10:00:03 [INFO] Memory check OK
+2025-01-01 10:00:04 [INFO] Storage check OK
+2025-01-01 10:00:05 [INFO] TEST_PASS: All systems nominal
+2025-01-01 10:00:06 [INFO] Device ready for operation

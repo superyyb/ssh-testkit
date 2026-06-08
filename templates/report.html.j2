@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Linux Test Automation Report</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f4f4f5;
+      color: #18181b;
+      padding: 32px;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    header {
+      background: #18181b;
+      color: white;
+      padding: 24px 32px;
+      border-radius: 10px;
+      margin-bottom: 24px;
+    }
+    header h1 { font-size: 20px; font-weight: 500; }
+    header p  { font-size: 13px; color: #a1a1aa; margin-top: 6px; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      border: 1px solid #e4e4e7;
+    }
+    .card .num   { font-size: 36px; font-weight: 600; }
+    .card .label { font-size: 12px; color: #71717a; margin-top: 4px; }
+    .card.pass    .num { color: #16a34a; }
+    .card.fail    .num { color: #dc2626; }
+    .card.unknown .num { color: #d97706; }
+    table {
+      width: 100%;
+      background: white;
+      border-radius: 10px;
+      border: 1px solid #e4e4e7;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    th {
+      background: #fafafa;
+      padding: 11px 16px;
+      text-align: left;
+      font-size: 12px;
+      color: #71717a;
+      font-weight: 500;
+      border-bottom: 1px solid #e4e4e7;
+    }
+    td {
+      padding: 12px 16px;
+      font-size: 14px;
+      border-bottom: 1px solid #f4f4f5;
+    }
+    tr:last-child td { border-bottom: none; }
+    code {
+      background: #f4f4f5;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .badge.PASS    { background: #dcfce7; color: #15803d; }
+    .badge.FAIL    { background: #fee2e2; color: #b91c1c; }
+    .badge.UNKNOWN { background: #fef3c7; color: #b45309; }
+    .badge.retry   { background: #fef3c7; color: #b45309; font-size: 11px; }
+    .log-block {
+      background: white;
+      border-radius: 10px;
+      border: 1px solid #e4e4e7;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .log-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid #f4f4f5;
+    }
+    .log-header h3 { font-size: 14px; font-weight: 500; }
+    .log-header .meta { font-size: 12px; color: #71717a; margin-left: auto; }
+    pre {
+      padding: 16px;
+      font-size: 12px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      background: #18181b;
+      color: #d4d4d8;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    pre.stderr { color: #fca5a5; border-top: 1px solid #27272a; }
+    .empty { color: #52525b; font-style: italic; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Linux Test Automation Report</h1>
+    <p>Generated at {{ generated_at }}</p>
+  </header>
+
+  <div class="summary">
+    <div class="card">
+      <div class="num">{{ total }}</div>
+      <div class="label">Total</div>
+    </div>
+    <div class="card pass">
+      <div class="num">{{ passed }}</div>
+      <div class="label">Passed</div>
+    </div>
+    <div class="card fail">
+      <div class="num">{{ failed }}</div>
+      <div class="label">Failed</div>
+    </div>
+    <div class="card unknown">
+      <div class="num">{{ unknown }}</div>
+      <div class="label">Unknown</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Test name</th>
+        <th>Command</th>
+        <th>Status</th>
+        <th>Exit code</th>
+        <th>Attempts</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for result in results %}
+      <tr>
+        <td>{{ result.name }}</td>
+        <td><code>{{ result.command }}</code></td>
+        <td><span class="badge {{ result.status }}">{{ result.status }}</span></td>
+        <td>{{ result.exit_code }}</td>
+        <td>
+          {% set attempts = result.attempts | default(1) %}
+          {% if attempts > 1 %}
+            <span class="badge retry">{{ attempts }}× retried</span>
+          {% else %}
+            1
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2 style="font-size:16px;font-weight:500;margin-bottom:14px;">Detailed logs</h2>
+
+  {% for result in results %}
+  <div class="log-block">
+    <div class="log-header">
+      <span class="badge {{ result.status }}">{{ result.status }}</span>
+      <h3>{{ result.name }}</h3>
+      {% set attempts = result.attempts | default(1) %}
+      {% if attempts > 1 %}
+        <span class="meta">{{ attempts }} attempts</span>
+      {% endif %}
+    </div>
+    <pre>{% if result.stdout %}{{ result.stdout | trim }}{% else %}<span class="empty">(no stdout)</span>{% endif %}</pre>
+    {% if result.stderr %}
+    <pre class="stderr">{{ result.stderr | trim }}</pre>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+</div>
+</body>
+</html>

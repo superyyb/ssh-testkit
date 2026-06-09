@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import Optional
  
-from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
@@ -245,7 +245,7 @@ def analyze_log(lines: int = 50) -> str:
         return "Log file is empty or not found."
  
     # Step 2: feed log to AI for analysis
-    analysis_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    analysis_llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
     response = analysis_llm.invoke(
         f"You are a hardware test log analyzer. Analyze this device log:\n\n"
         f"{log_content}\n\n"
@@ -268,10 +268,10 @@ def start_agent(config: dict):
     global _runner, _ssh, _config
     _config = config
  
-    if not os.getenv("OPENAI_API_KEY"):
+    if not os.getenv("ANTHROPIC_API_KEY"):
         raise EnvironmentError(
-            "OPENAI_API_KEY not set.\n"
-            "Add it to your .env file: OPENAI_API_KEY=sk-..."
+            "ANTHROPIC_API_KEY not set.\n"
+            "Add it to your .env file: ANTHROPIC_API_KEY=sk-..."
         )
  
     target = config.get("connection", config.get("target", {}))
@@ -285,7 +285,7 @@ def start_agent(config: dict):
     _runner = TestRunner(_ssh, config["tests"])
     logging.info("Agent: SSH connection established")
  
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
  
     tools = [
         list_tests,

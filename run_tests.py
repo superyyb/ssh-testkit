@@ -2,7 +2,9 @@ import argparse
 import logging
 import os
 import time
+import threading
 import yaml
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
  
 from framework.test_runner import TestRunner
@@ -121,30 +123,50 @@ def run_with_monitor(config, args):
     test_client.connect()
     monitor_client.connect()
  
+    # ThreadPoolExecutor limits concurrent AI analysis to 3 threads max
+    # prevents API rate limits and resource exhaustion on repeated failures
+    _ai_executor = ThreadPoolExecutor(max_workers=3)
+    llm = None
+    if os.getenv("ANTHROPIC_API_KEY"):
+        from langchain_anthropic import ChatAnthropic
+        llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
+ 
+    def _run_ai_analysis(alert_line):
+        """Run in a background thread — separate SSH connection to avoid race conditions."""
+        try:
+            from framework.ssh_client import SSHClient
+            ai_client = SSHClient(
+                host=connection_cfg["host"],
+                port=connection_cfg["port"],
+                username=connection_cfg["username"],
+                password=connection_cfg["password"]
+            )
+            ai_client.connect()
+            result = ai_client.run_command(f"tail -n 50 {log_path}")
+            ai_client.close()
+            response = llm.invoke(
+                f"A failure was detected in a device log. Analyze the following log and explain:\n"
+                f"1. What failed and why\n"
+                f"2. How severe is it\n"
+                f"3. Suggested fix\n\n"
+                f"Triggering line: {alert_line}\n\n"
+                f"Log context:\n{result['stdout']}"
+            )
+            logging.warning(f"[AI Analysis]\n{response.content}")
+            print(f"\n  [AI Analysis]\n{response.content}\n")
+        except Exception as e:
+            logging.error(f"[AI Analysis] Failed: {e}")
+            print(f"  [AI Analysis] Failed: {e}\n")
+ 
     alerts = []
     def on_alert(line):
         alerts.append(line)
-        print(f"\n  [ALERT] Failure detected in log: {line}")
-        print(f"  [ALERT] Triggering AI analysis...")
-        try:
-            from langchain_openai import ChatOpenAI
-            import os
-            if os.getenv("OPENAI_API_KEY"):
-                result   = monitor_client.run_command(f"tail -n 50 {log_path}")
-                llm      = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-                response = llm.invoke(
-                    f"A failure was detected in a device log. Analyze the following log and explain:\n"
-                    f"1. What failed and why\n"
-                    f"2. How severe is it\n"
-                    f"3. Suggested fix\n\n"
-                    f"Triggering line: {line}\n\n"
-                    f"Log context:\n{result['stdout']}"
-                )
-                print(f"\n  [AI Analysis]\n{response.content}\n")
-            else:
-                print("  [AI Analysis] Skipped — OPENAI_API_KEY not set\n")
-        except Exception as e:
-            print(f"  [AI Analysis] Failed: {e}\n")
+        print(f"\n  [ALERT] Failure detected in log: {line}\n")
+        if llm:
+            print(f"  [ALERT] Triggering AI analysis in background...\n")
+            _ai_executor.submit(_run_ai_analysis, line)
+        else:
+            print("  [AI Analysis] Skipped — ANTHROPIC_API_KEY not set\n")
  
     monitor = LogMonitor(
         ssh_client=monitor_client,
@@ -164,6 +186,7 @@ def run_with_monitor(config, args):
     finally:
         test_client.close()
         monitor_client.close()
+        _ai_executor.shutdown(wait=True)  # wait for all AI analysis threads to finish
  
     timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_path = generate_html_report(results, output_path=f"reports/report_{timestamp}.html")

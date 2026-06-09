@@ -2,14 +2,14 @@
 ci_analyze.py
 
 Runs automatically in GitHub Actions when tests fail.
-Reads the test run log, feeds it to OpenAI for analysis,
+Reads the test run log, feeds it to Claude for analysis,
 and prints a structured failure report to the CI output.
 """
 
 import os
 import sys
 import glob
-from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 
 
 def get_latest_log() -> str:
@@ -23,8 +23,8 @@ def get_latest_log() -> str:
 
 
 def analyze(log_content: str) -> str:
-    """Feed log content to OpenAI and return structured analysis."""
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    """Feed log content to Claude and return structured analysis."""
+    llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
     response = llm.invoke(
         "You are a CI test failure analyst. Analyze this test run log.\n\n"
         "Provide:\n"
@@ -39,11 +39,11 @@ def analyze(log_content: str) -> str:
 
 def main():
     print("\n" + "="*60)
-    print("  AI Failure Diagnostics (LangChain + GPT-4o-mini)")
+    print("  AI Failure Diagnostics (LangChain + Claude)")
     print("="*60 + "\n")
 
-    if not os.getenv("OPENAI_API_KEY"):
-        print("OPENAI_API_KEY not set — skipping AI analysis.")
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("ANTHROPIC_API_KEY not set — skipping AI analysis.")
         sys.exit(0)
 
     log_content = get_latest_log()

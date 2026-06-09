@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
  
-      - name: Start Docker target (SSH + Flask)
+      - name: Start Docker target (SSH + FastAPI)
         run: |
           cd docker
           docker compose up -d --build
@@ -39,7 +39,7 @@ jobs:
       - name: AI failure diagnostics
         if: failure()
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python3 scripts/ci_analyze.py
  
       - name: Upload test report

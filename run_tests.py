@@ -124,7 +124,27 @@ def run_with_monitor(config, args):
     alerts = []
     def on_alert(line):
         alerts.append(line)
-        print(f"\n  [ALERT] Failure detected in log: {line}\n")
+        print(f"\n  [ALERT] Failure detected in log: {line}")
+        print(f"  [ALERT] Triggering AI analysis...")
+        try:
+            from langchain_openai import ChatOpenAI
+            import os
+            if os.getenv("OPENAI_API_KEY"):
+                result   = monitor_client.run_command(f"tail -n 50 {log_path}")
+                llm      = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+                response = llm.invoke(
+                    f"A failure was detected in a device log. Analyze the following log and explain:\n"
+                    f"1. What failed and why\n"
+                    f"2. How severe is it\n"
+                    f"3. Suggested fix\n\n"
+                    f"Triggering line: {line}\n\n"
+                    f"Log context:\n{result['stdout']}"
+                )
+                print(f"\n  [AI Analysis]\n{response.content}\n")
+            else:
+                print("  [AI Analysis] Skipped — OPENAI_API_KEY not set\n")
+        except Exception as e:
+            print(f"  [AI Analysis] Failed: {e}\n")
  
     monitor = LogMonitor(
         ssh_client=monitor_client,

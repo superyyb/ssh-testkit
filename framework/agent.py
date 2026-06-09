@@ -271,7 +271,7 @@ def start_agent(config: dict):
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise EnvironmentError(
             "ANTHROPIC_API_KEY not set.\n"
-            "Add it to your .env file: ANTHROPIC_API_KEY=sk-..."
+            "Add it to your .env file: ANTHROPIC_API_KEY=sk-ant-api03-..."
         )
  
     target = config.get("connection", config.get("target", {}))

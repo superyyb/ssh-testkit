@@ -2,7 +2,6 @@ import argparse
 import logging
 import os
 import time
-import threading
 import yaml
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -126,24 +125,18 @@ def run_with_monitor(config, args):
     # ThreadPoolExecutor limits concurrent AI analysis to 3 threads max
     # prevents API rate limits and resource exhaustion on repeated failures
     _ai_executor = ThreadPoolExecutor(max_workers=3)
+    _ai_futures  = []
+    _ssh_lock    = __import__("threading").Lock()
     llm = None
     if os.getenv("ANTHROPIC_API_KEY"):
         from langchain_anthropic import ChatAnthropic
         llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
  
     def _run_ai_analysis(alert_line):
-        """Run in a background thread — separate SSH connection to avoid race conditions."""
+        """Run in a background thread — reuses monitor_client with a lock to avoid race conditions."""
         try:
-            from framework.ssh_client import SSHClient
-            ai_client = SSHClient(
-                host=connection_cfg["host"],
-                port=connection_cfg["port"],
-                username=connection_cfg["username"],
-                password=connection_cfg["password"]
-            )
-            ai_client.connect()
-            result = ai_client.run_command(f"tail -n 50 {log_path}")
-            ai_client.close()
+            with _ssh_lock:
+                result = monitor_client.run_command(f"tail -n 50 {log_path}")
             response = llm.invoke(
                 f"A failure was detected in a device log. Analyze the following log and explain:\n"
                 f"1. What failed and why\n"
@@ -164,7 +157,7 @@ def run_with_monitor(config, args):
         print(f"\n  [ALERT] Failure detected in log: {line}\n")
         if llm:
             print(f"  [ALERT] Triggering AI analysis in background...\n")
-            _ai_executor.submit(_run_ai_analysis, line)
+            _ai_futures.append(_ai_executor.submit(_run_ai_analysis, line))
         else:
             print("  [AI Analysis] Skipped — ANTHROPIC_API_KEY not set\n")
  
@@ -186,7 +179,13 @@ def run_with_monitor(config, args):
     finally:
         test_client.close()
         monitor_client.close()
-        _ai_executor.shutdown(wait=True)  # wait for all AI analysis threads to finish
+        # Wait up to 30s per pending AI analysis; skip if it takes too long
+        for f in _ai_futures:
+            try:
+                f.result(timeout=30)
+            except Exception:
+                pass
+        _ai_executor.shutdown(wait=False)
  
     timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_path = generate_html_report(results, output_path=f"reports/report_{timestamp}.html")

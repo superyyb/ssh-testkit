@@ -137,18 +137,19 @@ def run_with_monitor(config, args):
         try:
             with _ssh_lock:
                 result = monitor_client.run_command(f"tail -n 50 {log_path}")
+            log_context = result.get('stdout', '').strip() or '(no log output available)'
             response = llm.invoke(
                 f"A failure was detected in a device log. Analyze the following log and explain:\n"
                 f"1. What failed and why\n"
                 f"2. How severe is it\n"
                 f"3. Suggested fix\n\n"
                 f"Triggering line: {alert_line}\n\n"
-                f"Log context:\n{result['stdout']}"
+                f"Log context:\n{log_context}"
             )
             logging.warning(f"[AI Analysis]\n{response.content}")
             print(f"\n  [AI Analysis]\n{response.content}\n")
         except Exception as e:
-            logging.error(f"[AI Analysis] Failed: {e}")
+            logging.exception(f"[AI Analysis] Failed: {e}")
             print(f"  [AI Analysis] Failed: {e}\n")
  
     alerts = []
@@ -185,7 +186,7 @@ def run_with_monitor(config, args):
                 f.result(timeout=30)
             except Exception:
                 pass
-        _ai_executor.shutdown(wait=False)
+        _ai_executor.shutdown(wait=True)
  
     timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_path = generate_html_report(results, output_path=f"reports/report_{timestamp}.html")

@@ -24,7 +24,7 @@ def get_latest_log() -> str:
 
 def analyze(log_content: str) -> str:
     """Feed log content to Claude and return structured analysis."""
-    llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
+    llm = ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022"), temperature=0)
     response = llm.invoke(
         "You are a CI test failure analyst. Analyze this test run log.\n\n"
         "Provide:\n"

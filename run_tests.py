@@ -67,7 +67,7 @@ def run_once(config, args, run_index=None):
     _analysis_llm = None
     if os.getenv("ANTHROPIC_API_KEY"):
         from langchain_anthropic import ChatAnthropic
-        _analysis_llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
+        _analysis_llm = ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022"), temperature=0)
 
     def _run_ai_analysis_once(test_name, log_content):
         """AI analysis in a background thread — does not block test workers."""
@@ -167,7 +167,7 @@ def run_with_monitor(config, args):
     llm = None
     if os.getenv("ANTHROPIC_API_KEY"):
         from langchain_anthropic import ChatAnthropic
-        llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
+        llm = ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022"), temperature=0)
  
     def _run_ai_analysis(alert_line):
         """Run in a background thread — reuses monitor_client with a lock to avoid race conditions."""

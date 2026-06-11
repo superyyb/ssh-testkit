@@ -245,7 +245,7 @@ def analyze_log(lines: int = 50) -> str:
         return "Log file is empty or not found."
  
     # Step 2: feed log to AI for analysis
-    analysis_llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
+    analysis_llm = ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022"), temperature=0)
     response = analysis_llm.invoke(
         f"You are a hardware test log analyzer. Analyze this device log:\n\n"
         f"{log_content}\n\n"
@@ -285,7 +285,7 @@ def start_agent(config: dict):
     _runner = TestRunner(_ssh, config["tests"])
     logging.info("Agent: SSH connection established")
  
-    llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
+    llm = ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022"), temperature=0)
  
     tools = [
         list_tests,

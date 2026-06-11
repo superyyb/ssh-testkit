@@ -61,6 +61,31 @@ def run_once(config, args, run_index=None):
     connection_cfg = config.get("connection", config.get("target", {}))
     tests = config["tests"]
  
+    # ThreadPoolExecutor for async AI analysis — keeps test workers unblocked
+    _ai_executor  = ThreadPoolExecutor(max_workers=3)
+    _ai_futures   = []
+    _analysis_llm = None
+    if os.getenv("ANTHROPIC_API_KEY"):
+        from langchain_anthropic import ChatAnthropic
+        _analysis_llm = ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=0)
+
+    def _run_ai_analysis_once(test_name, log_content):
+        """AI analysis in a background thread — does not block test workers."""
+        try:
+            log_context = log_content.get("stdout", "").strip() or "(no log output available)"
+            response    = _analysis_llm.invoke(
+                f"A test failed. Analyze the following device log and explain:\n"
+                f"1. What failed and why\n"
+                f"2. How severe is it\n"
+                f"3. Suggested fix\n\n"
+                f"Failed test: {test_name}\n\n"
+                f"Log context:\n{log_context}"
+            )
+            logging.warning(f"[AI Analysis for '{test_name}']\n{response.content}")
+            print(f"\n  [AI Analysis for '{test_name}']\n{response.content}\n")
+        except Exception as e:
+            logging.exception(f"[AI Analysis] Failed for '{test_name}': {e}")
+
     with build_client(connection_cfg) as client:
         runner = TestRunner(client, tests)
         if args.single:
@@ -71,13 +96,25 @@ def run_once(config, args, run_index=None):
             def on_result(result):
                 if result["status"] == "FAIL":
                     logging.warning(
-                        f"[on_result] '{result['name']}' FAILED — triggering AI log analysis"
+                        f"[on_result] '{result['name']}' FAILED — triggering async AI log analysis"
                     )
-                    from framework.agent import analyze_log
-                    analysis = analyze_log.invoke({"lines": 50})
-                    logging.warning(f"[AI Analysis for '{result['name']}']\n{analysis}")
+                    if _analysis_llm:
+                        log_cfg  = config.get("monitor", {})
+                        log_path = log_cfg.get("log_path", "/home/testuser/app_logs/app.log")
+                        log_data = client.run_command(f"tail -n 50 {log_path}")
+                        _ai_futures.append(
+                            _ai_executor.submit(_run_ai_analysis_once, result["name"], log_data)
+                        )
 
             results = runner.run_all(max_workers=max_workers, on_result=on_result)
+
+    # Wait up to 30s per pending AI analysis; skip if it takes too long
+    for f in _ai_futures:
+        try:
+            f.result(timeout=30)
+        except Exception:
+            pass
+    _ai_executor.shutdown(wait=True)
  
     timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_path = generate_html_report(results, output_path=f"reports/report_{timestamp}.html")

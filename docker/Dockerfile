@@ -19,6 +19,7 @@ RUN mkdir -p /home/testuser/device_logs
  
 COPY sample_device_log.txt /home/testuser/device_logs/device.log
 COPY server.py /home/testuser/server.py
+COPY parse_log.pl /home/testuser/parse_log.pl
 COPY entrypoint.sh /entrypoint.sh
  
 EXPOSE 22 8080

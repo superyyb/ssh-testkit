@@ -50,11 +50,12 @@ def build_client(connection_cfg):
  
 def print_summary(results, run_index=None):
     passed  = sum(1 for r in results if r["status"] == "PASS")
+    flaky   = sum(1 for r in results if r["status"] == "FLAKY")
     failed  = sum(1 for r in results if r["status"] == "FAIL")
     unknown = sum(1 for r in results if r["status"] == "UNKNOWN")
     label = f"Run #{run_index}" if run_index else "Results"
     print(f"\n{'='*40}")
-    print(f"  {label}: {passed} PASS  {failed} FAIL  {unknown} UNKNOWN")
+    print(f"  {label}: {passed} PASS  {flaky} FLAKY  {failed} FAIL  {unknown} UNKNOWN")
     print(f"{'='*40}\n")
  
  

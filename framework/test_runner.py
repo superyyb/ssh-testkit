@@ -97,8 +97,13 @@ class TestRunner:
             if attempt < max_attempts:
                 logging.info(f"  Result: {status} — retrying...")
  
-        logging.info(f"  -> {status} (attempt {attempt}/{max_attempts})")
- 
+        # If it passed but needed retries, mark as FLAKY
+        if status == "PASS" and attempt > 1:
+            status = "FLAKY"
+            logging.warning(f"  -> FLAKY (passed after {attempt} attempts)")
+        else:
+            logging.info(f"  -> {status} (attempt {attempt}/{max_attempts})")
+
         return {
             "name":        test["name"],
             "command":     test["command"],

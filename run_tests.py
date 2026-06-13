@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import time
+import threading
 import yaml
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -163,7 +164,7 @@ def run_with_monitor(config, args):
     # prevents API rate limits and resource exhaustion on repeated failures
     _ai_executor = ThreadPoolExecutor(max_workers=3)
     _ai_futures  = []
-    _ssh_lock    = __import__("threading").Lock()
+    _ssh_lock    = threading.Lock()
     llm = None
     if os.getenv("ANTHROPIC_API_KEY"):
         from langchain_anthropic import ChatAnthropic

@@ -65,6 +65,7 @@ def run_once(config, args, run_index=None):
     # ThreadPoolExecutor for async AI analysis — keeps test workers unblocked
     _ai_executor  = ThreadPoolExecutor(max_workers=3)
     _ai_futures   = []
+    _ssh_lock     = threading.Lock()  # prevents concurrent client.run_command() calls
     _analysis_llm = None
     if os.getenv("ANTHROPIC_API_KEY"):
         from langchain_anthropic import ChatAnthropic
@@ -102,7 +103,8 @@ def run_once(config, args, run_index=None):
                     if _analysis_llm:
                         log_cfg  = config.get("monitor", {})
                         log_path = log_cfg.get("log_path", "/home/testuser/app_logs/app.log")
-                        log_data = client.run_command(f"tail -n 50 {log_path}")
+                        with _ssh_lock:
+                            log_data = client.run_command(f"tail -n 50 {log_path}")
                         _ai_futures.append(
                             _ai_executor.submit(_run_ai_analysis_once, result["name"], log_data)
                         )

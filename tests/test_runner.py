@@ -102,7 +102,7 @@ class TestOnResultCallback:
 class TestRetryLogic:
 
     def test_retries_on_failure_then_passes(self):
-        """First call fails, second call passes — should report PASS with 2 attempts."""
+        """First call fails, second call passes — should report FLAKY with 2 attempts."""
         ssh = MagicMock()
         ssh.run_command.side_effect = [
             {"stdout": "",   "stderr": "", "exit_code": 1},  # attempt 1: FAIL
@@ -111,7 +111,7 @@ class TestRetryLogic:
         tests = [{"name": "flaky", "command": "ls", "pass_regex": "ok", "retries": 1}]
         runner = TestRunner(ssh, tests)
         results = runner.run_all()
-        assert results[0]["status"] == "PASS"
+        assert results[0]["status"] == "FLAKY"
         assert results[0]["attempts"] == 2
 
     def test_fails_after_all_retries_exhausted(self):

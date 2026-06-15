@@ -6,3 +6,4 @@ langchain
 langchain-anthropic
 anthropic
 python-dotenv
+psycopg2-binary

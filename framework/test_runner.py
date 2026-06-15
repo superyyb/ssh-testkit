@@ -62,7 +62,8 @@ class TestRunner:
         output  = None
         status  = "UNKNOWN"
         attempt = 0
- 
+        _start  = time.time()
+
         for attempt in range(1, max_attempts + 1):
             if attempt > 1:
                 logging.info(f"  Retry {attempt-1}/{max_retries}...")
@@ -113,4 +114,5 @@ class TestRunner:
             "exit_code":   output["exit_code"] if output else -1,
             "attempts":    attempt,
             "parser_type": parser_type,
+            "duration_s":  round(time.time() - _start, 2),
         }

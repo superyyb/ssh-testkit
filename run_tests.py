@@ -6,6 +6,9 @@ import threading
 import yaml
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
  
 from framework.test_runner import TestRunner
 from framework.reporter import generate_html_report
@@ -60,9 +63,18 @@ def print_summary(results, run_index=None):
  
  
 def run_once(config, args, run_index=None):
+    _started_at    = datetime.now()
     connection_cfg = config.get("connection", config.get("target", {}))
-    tests = config["tests"]
- 
+    tests          = config["tests"]
+
+    _db_run_id = None
+    try:
+        from framework.database import init_schema, create_test_run
+        init_schema()
+        _db_run_id = create_test_run(getattr(args, "config", "unknown"))
+    except Exception as e:
+        logging.warning(f"[DB] Unavailable, skipping persistence: {e}")
+
     # ThreadPoolExecutor for async AI analysis — keeps test workers unblocked
     _ai_executor  = ThreadPoolExecutor(max_workers=3)
     _ai_futures   = []
@@ -72,7 +84,7 @@ def run_once(config, args, run_index=None):
         from langchain_anthropic import ChatAnthropic
         _analysis_llm = ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022"), temperature=0)
 
-    def _run_ai_analysis_once(test_name, log_content):
+    def _run_ai_analysis_once(test_name, log_content, result_id=None):
         """AI analysis in a background thread — does not block test workers."""
         try:
             log_context = log_content.get("stdout", "").strip() or "(no log output available)"
@@ -86,6 +98,12 @@ def run_once(config, args, run_index=None):
             )
             logging.warning(f"[AI Analysis for '{test_name}']\n{response.content}")
             print(f"\n  [AI Analysis for '{test_name}']\n{response.content}\n")
+            if _db_run_id and result_id:
+                try:
+                    from framework.database import update_result_ai
+                    update_result_ai(result_id, response.content)
+                except Exception as db_err:
+                    logging.warning(f"[DB] update_result_ai failed: {db_err}")
         except Exception as e:
             logging.exception(f"[AI Analysis] Failed for '{test_name}': {e}")
 
@@ -97,6 +115,14 @@ def run_once(config, args, run_index=None):
             max_workers = connection_cfg.get("max_workers", 1)
 
             def on_result(result):
+                result_id = None
+                if _db_run_id:
+                    try:
+                        from framework.database import save_test_result
+                        result_id = save_test_result(_db_run_id, result)
+                    except Exception as db_err:
+                        logging.warning(f"[DB] save_test_result failed: {db_err}")
+
                 if result["status"] == "FAIL":
                     logging.warning(
                         f"[on_result] '{result['name']}' FAILED — triggering async AI log analysis"
@@ -107,7 +133,7 @@ def run_once(config, args, run_index=None):
                         with _ssh_lock:
                             log_data = client.run_command(f"tail -n 50 {log_path}")
                         _ai_futures.append(
-                            _ai_executor.submit(_run_ai_analysis_once, result["name"], log_data)
+                            _ai_executor.submit(_run_ai_analysis_once, result["name"], log_data, result_id)
                         )
 
             results = runner.run_all(max_workers=max_workers, on_result=on_result)
@@ -119,7 +145,14 @@ def run_once(config, args, run_index=None):
         except Exception:
             pass
     _ai_executor.shutdown(wait=True)
- 
+
+    if _db_run_id:
+        try:
+            from framework.database import finish_test_run
+            finish_test_run(_db_run_id, results, _started_at)
+        except Exception as e:
+            logging.warning(f"[DB] finish_test_run failed: {e}")
+
     timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_path = generate_html_report(results, output_path=f"reports/report_{timestamp}.html")
     logging.info(f"Report saved: {report_path}")
@@ -148,7 +181,8 @@ def run_with_monitor(config, args):
     Thread 2 (daemon): polls the log file for failure patterns in real-time
     """
     from framework.log_monitor import LogMonitor
- 
+    _started_at = datetime.now()
+
     connection_cfg = config.get("connection", config.get("target", {}))
     monitor_cfg    = config.get("monitor", {})
     tests          = config["tests"]
@@ -156,7 +190,15 @@ def run_with_monitor(config, args):
     log_path      = monitor_cfg.get("log_path", "/home/testuser/device_logs/device.log")
     fail_patterns = monitor_cfg.get("fail_patterns", ["ERROR", "FATAL", "TEST_FAIL"])
     interval      = monitor_cfg.get("interval", 2)
- 
+
+    _db_run_id = None
+    try:
+        from framework.database import init_schema, create_test_run
+        init_schema()
+        _db_run_id = create_test_run(getattr(args, "config", "unknown"))
+    except Exception as e:
+        logging.warning(f"[DB] Unavailable, skipping persistence: {e}")
+
     # Two separate SSH connections — one for tests, one for monitor
     test_client    = build_client(connection_cfg)
     monitor_client = build_client(connection_cfg)
@@ -173,7 +215,7 @@ def run_with_monitor(config, args):
         from langchain_anthropic import ChatAnthropic
         llm = ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022"), temperature=0)
  
-    def _run_ai_analysis(alert_line):
+    def _run_ai_analysis(alert_line, alert_id=None):
         """Run in a background thread — reuses monitor_client with a lock to avoid race conditions."""
         try:
             with _ssh_lock:
@@ -189,6 +231,12 @@ def run_with_monitor(config, args):
             )
             logging.warning(f"[AI Analysis]\n{response.content}")
             print(f"\n  [AI Analysis]\n{response.content}\n")
+            if _db_run_id and alert_id:
+                try:
+                    from framework.database import update_alert_ai
+                    update_alert_ai(alert_id, response.content)
+                except Exception as db_err:
+                    logging.warning(f"[DB] update_alert_ai failed: {db_err}")
         except Exception as e:
             logging.exception(f"[AI Analysis] Failed: {e}")
             print(f"  [AI Analysis] Failed: {e}\n")
@@ -197,9 +245,16 @@ def run_with_monitor(config, args):
     def on_alert(line):
         alerts.append(line)
         print(f"\n  [ALERT] Failure detected in log: {line}\n")
+        alert_id = None
+        if _db_run_id:
+            try:
+                from framework.database import save_alert_event
+                alert_id = save_alert_event(_db_run_id, line)
+            except Exception as db_err:
+                logging.warning(f"[DB] save_alert_event failed: {db_err}")
         if llm:
             print(f"  [ALERT] Triggering AI analysis in background...\n")
-            _ai_futures.append(_ai_executor.submit(_run_ai_analysis, line))
+            _ai_futures.append(_ai_executor.submit(_run_ai_analysis, line, alert_id))
         else:
             print("  [AI Analysis] Skipped — ANTHROPIC_API_KEY not set\n")
  
@@ -228,7 +283,16 @@ def run_with_monitor(config, args):
             except Exception:
                 pass
         _ai_executor.shutdown(wait=True)
- 
+
+    if _db_run_id:
+        try:
+            from framework.database import save_test_result, finish_test_run
+            for result in results:
+                save_test_result(_db_run_id, result)
+            finish_test_run(_db_run_id, results, _started_at)
+        except Exception as e:
+            logging.warning(f"[DB] Failed to save results: {e}")
+
     timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_path = generate_html_report(results, output_path=f"reports/report_{timestamp}.html")
     logging.info(f"Report saved: {report_path}")

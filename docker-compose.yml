@@ -1,0 +1,26 @@
+services:
+  test-target:
+    build:
+      context: ./docker
+    ports:
+      - "2222:22"
+      - "8080:8080"
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: testframework
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d testframework"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

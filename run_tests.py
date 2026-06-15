@@ -266,12 +266,20 @@ def run_with_monitor(config, args):
         interval=interval
     )
  
+    def on_result(result):
+        if _db_run_id:
+            try:
+                from framework.database import save_test_result
+                save_test_result(_db_run_id, result)
+            except Exception as db_err:
+                logging.warning(f"[DB] save_test_result failed: {db_err}")
+
     try:
         print(f"[Concurrent mode] Running tests + monitoring {log_path}\n")
         monitor.start()
         runner      = TestRunner(test_client, tests)
         max_workers = connection_cfg.get("max_workers", 1)
-        results     = runner.run_all(max_workers=max_workers)
+        results     = runner.run_all(max_workers=max_workers, on_result=on_result)
         monitor.stop()
     finally:
         test_client.close()
@@ -286,12 +294,10 @@ def run_with_monitor(config, args):
 
     if _db_run_id:
         try:
-            from framework.database import save_test_result, finish_test_run
-            for result in results:
-                save_test_result(_db_run_id, result)
+            from framework.database import finish_test_run
             finish_test_run(_db_run_id, results, _started_at)
         except Exception as e:
-            logging.warning(f"[DB] Failed to save results: {e}")
+            logging.warning(f"[DB] finish_test_run failed: {e}")
 
     timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_path = generate_html_report(results, output_path=f"reports/report_{timestamp}.html")

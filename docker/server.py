@@ -1,3 +1,4 @@
+from collections import deque
 from fastapi import FastAPI, Request
 import logging
 import os
@@ -18,7 +19,7 @@ logging.basicConfig(
 _start_time     = time.time()
 _request_count  = 0
 _error_count    = 0
-_response_times = []
+_response_times = deque(maxlen=1000)  # auto-drops oldest entries
 
 
 @app.middleware("http")
@@ -48,8 +49,12 @@ def status():
     try:
         import psycopg2
         conn = psycopg2.connect(
-            host="postgres", port=5432,
-            dbname="testframework", user="testuser", password="testpass"
+            host=os.getenv("DB_HOST", "postgres"),
+            port=int(os.getenv("DB_PORT", "5432")),
+            dbname=os.getenv("DB_NAME", "testframework"),
+            user=os.getenv("DB_USER", "testuser"),
+            password=os.getenv("DB_PASSWORD", "testpass"),
+            connect_timeout=2,
         )
         conn.close()
     except Exception:
@@ -60,7 +65,7 @@ def status():
 @app.get("/metrics")
 def metrics():
     logging.info("Metrics requested")
-    recent = _response_times[-100:]
+    recent = list(_response_times)[-100:]
     return {
         "uptime_seconds":  round(time.time() - _start_time),
         "request_count":   _request_count,

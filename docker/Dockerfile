@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     iproute2 \
     && mkdir /var/run/sshd
  
-RUN pip3 install fastapi uvicorn
+RUN pip3 install fastapi uvicorn psutil psycopg2-binary
  
 RUN useradd -m testuser && echo "testuser:testpass" | chpasswd
  

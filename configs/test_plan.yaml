@@ -60,16 +60,28 @@ tests:
   - name: Check API status endpoint
     command: curl -s http://localhost:8080/status
     pass_regex: "connected"
-    fail_regex: "error|disconnected"
+    fail_regex: "unreachable|disconnected"
     timeout: 10
     retries: 2
- 
+
   - name: Check API metrics endpoint
     command: curl -s http://localhost:8080/metrics
-    pass_regex: "uptime"
-    fail_regex: "error|refused"
+    pass_regex: "uptime_seconds"
+    fail_regex: "refused|Internal"
     timeout: 10
     retries: 1
+
+  - name: Check memory usage is healthy
+    command: curl -s http://localhost:8080/metrics
+    pass_regex: '"memory_percent"'
+    fail_regex: '"memory_percent": 9\d'
+    timeout: 10
+
+  - name: Check API error rate is low
+    command: curl -s http://localhost:8080/metrics
+    pass_regex: '"error_rate"'
+    fail_regex: '"error_rate": [1-9]'
+    timeout: 10
  
   # ── Application log validation ───────────────────────────────────────────
   - name: Check app log for startup success

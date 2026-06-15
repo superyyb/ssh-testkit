@@ -1,7 +1,8 @@
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request
 import logging
 import os
+import time
+import psutil
 import uvicorn
 
 app = FastAPI()
@@ -14,6 +15,25 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
 
+_start_time     = time.time()
+_request_count  = 0
+_error_count    = 0
+_response_times = []
+
+
+@app.middleware("http")
+async def track_requests(request: Request, call_next):
+    global _request_count, _error_count
+    start    = time.time()
+    response = await call_next(request)
+    duration = time.time() - start
+
+    _request_count += 1
+    _response_times.append(duration)
+    if response.status_code >= 500:
+        _error_count += 1
+    return response
+
 
 @app.get("/health")
 def health():
@@ -24,13 +44,34 @@ def health():
 @app.get("/status")
 def status():
     logging.info("Status check requested")
-    return {"db": "connected", "cache": "ok", "service": "running"}
+    db_status = "connected"
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host="postgres", port=5432,
+            dbname="testframework", user="testuser", password="testpass"
+        )
+        conn.close()
+    except Exception:
+        db_status = "unreachable"
+    return {"db": db_status, "service": "running"}
 
 
 @app.get("/metrics")
 def metrics():
     logging.info("Metrics requested")
-    return {"uptime": 3600, "requests_total": 42, "errors": 0}
+    recent = _response_times[-100:]
+    return {
+        "uptime_seconds":  round(time.time() - _start_time),
+        "request_count":   _request_count,
+        "error_count":     _error_count,
+        "error_rate":      round(_error_count / max(_request_count, 1), 4),
+        "avg_response_ms": round(sum(recent) / max(len(recent), 1) * 1000, 2),
+        "cpu_percent":     psutil.cpu_percent(interval=0.1),
+        "memory_percent":  psutil.virtual_memory().percent,
+        "memory_used_mb":  psutil.virtual_memory().used // 1024 // 1024,
+        "disk_percent":    psutil.disk_usage("/").percent,
+    }
 
 
 if __name__ == "__main__":

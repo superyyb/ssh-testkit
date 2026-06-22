@@ -39,7 +39,7 @@ class LogMonitor:
         """Signal the monitor to stop and wait for the thread to finish."""
         self._stop_event.set()
         if self._thread:
-            self._thread.join()
+            self._thread.join(timeout=10)
         logging.info("LogMonitor stopped")
  
     def _run(self):

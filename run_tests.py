@@ -131,7 +131,7 @@ def run_once(config, args, run_index=None):
                         log_cfg  = config.get("monitor", {})
                         log_path = log_cfg.get("log_path", "/home/testuser/app_logs/app.log")
                         with _ssh_lock:
-                            log_data = client.run_command(f"tail -n 50 {log_path}")
+                            log_data = client.run_command(f"tail -n 50 {log_path}", timeout=10)
                         _ai_futures.append(
                             _ai_executor.submit(_run_ai_analysis_once, result["name"], log_data, result_id)
                         )
@@ -142,8 +142,8 @@ def run_once(config, args, run_index=None):
     for f in _ai_futures:
         try:
             f.result(timeout=30)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"[AI] Analysis task failed or timed out: {e}")
     _ai_executor.shutdown(wait=True)
 
     if _db_run_id:
@@ -219,7 +219,7 @@ def run_with_monitor(config, args):
         """Run in a background thread — reuses monitor_client with a lock to avoid race conditions."""
         try:
             with _ssh_lock:
-                result = monitor_client.run_command(f"tail -n 50 {log_path}")
+                result = monitor_client.run_command(f"tail -n 50 {log_path}", timeout=10)
             log_context = result.get('stdout', '').strip() or '(no log output available)'
             response = llm.invoke(
                 f"A failure was detected in a device log. Analyze the following log and explain:\n"
@@ -288,8 +288,8 @@ def run_with_monitor(config, args):
         for f in _ai_futures:
             try:
                 f.result(timeout=30)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"[AI] Analysis task failed or timed out: {e}")
         _ai_executor.shutdown(wait=True)
 
     if _db_run_id:

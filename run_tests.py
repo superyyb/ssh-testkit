@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import re
 import time
 import threading
 import yaml
@@ -241,15 +242,23 @@ def run_with_monitor(config, args):
             logging.exception(f"[AI Analysis] Failed: {e}")
             print(f"  [AI Analysis] Failed: {e}\n")
  
+    def _alert_fingerprint(line, pattern):
+        # Strip leading timestamp so same error at different times shares one fingerprint
+        cleaned = re.sub(r'^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}[\.\d]*\s*', '', line).strip()
+        return f"{pattern}::{cleaned[:60]}"
+
+    _DEDUP_WINDOW = 60  # seconds — long enough to suppress storm, short enough to catch recovery+crash
+    _recent_ai_keys = {}  # shared by on_result and on_alert; fingerprint -> last triggered time
+
     alerts = []
-    _alert_cooldowns = {}  # pattern -> last triggered time; suppresses repeats within 5 min
 
     def on_alert(line, pattern):
         now = time.time()
-        if now - _alert_cooldowns.get(pattern, 0) < 300:
-            logging.info(f"[ALERT] Suppressed duplicate for pattern '{pattern}' (cooldown)")
+        key = _alert_fingerprint(line, pattern)
+        if now - _recent_ai_keys.get(key, 0) < _DEDUP_WINDOW:
+            logging.info(f"[ALERT] Suppressed duplicate (cooldown): {key}")
             return
-        _alert_cooldowns[pattern] = now
+        _recent_ai_keys[key] = now
         alerts.append(line)
         print(f"\n  [ALERT] Failure detected in log: {line}\n")
         alert_id = None
@@ -280,6 +289,9 @@ def run_with_monitor(config, args):
                 save_test_result(_db_run_id, result)
             except Exception as db_err:
                 logging.warning(f"[DB] save_test_result failed: {db_err}")
+        # Register in shared dedup dict so log alerts for the same failure are suppressed
+        if result["status"] == "FAIL":
+            _recent_ai_keys[f"test::{result['name']}"] = time.time()
 
     try:
         print(f"[Concurrent mode] Running tests + monitoring {log_path}\n")

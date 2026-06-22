@@ -142,8 +142,8 @@ def run_once(config, args, run_index=None):
     for f in _ai_futures:
         try:
             f.result(timeout=30)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"[AI] Analysis task failed or timed out: {e}")
     _ai_executor.shutdown(wait=True)
 
     if _db_run_id:
@@ -288,8 +288,8 @@ def run_with_monitor(config, args):
         for f in _ai_futures:
             try:
                 f.result(timeout=30)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"[AI] Analysis task failed or timed out: {e}")
         _ai_executor.shutdown(wait=True)
 
     if _db_run_id:

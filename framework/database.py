@@ -11,6 +11,7 @@ def _connect():
         dbname=os.getenv("POSTGRES_DB", "testframework"),
         user=os.getenv("POSTGRES_USER", "testuser"),
         password=os.getenv("POSTGRES_PASSWORD", "testpass"),
+        connect_timeout=5,
     )
 
 

@@ -58,7 +58,7 @@ class LogMonitor:
                     for pattern in self.fail_patterns:
                         if re.search(pattern, line, re.IGNORECASE):
                             logging.warning(f"LogMonitor: failure detected → {line}")
-                            self.alert_callback(line)
+                            self.alert_callback(line, pattern)
                             break
  
             except Exception as e:

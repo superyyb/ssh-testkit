@@ -16,7 +16,7 @@ def make_monitor(lines, patterns, callback, interval=0.05):
         ssh_client=ssh,
         log_path="/fake/app.log",
         fail_patterns=patterns,
-        alert_callback=callback,
+        alert_callback=lambda line, pattern: callback(line),
         interval=interval,
     )
 
@@ -88,7 +88,7 @@ class TestDeduplication:
             ssh_client=ssh,
             log_path="/fake/app.log",
             fail_patterns=["ERROR"],
-            alert_callback=alerts.append,
+            alert_callback=lambda line, pattern: alerts.append(line),
             interval=0.05,
         )
         monitor.start()
@@ -121,7 +121,7 @@ class TestStartStop:
             ssh_client=ssh,
             log_path="/fake/app.log",
             fail_patterns=["ERROR"],
-            alert_callback=alerts.append,
+            alert_callback=lambda line, pattern: alerts.append(line),
             interval=0.05,
         )
         monitor.start()

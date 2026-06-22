@@ -242,7 +242,14 @@ def run_with_monitor(config, args):
             print(f"  [AI Analysis] Failed: {e}\n")
  
     alerts = []
-    def on_alert(line):
+    _alert_cooldowns = {}  # pattern -> last triggered time; suppresses repeats within 5 min
+
+    def on_alert(line, pattern):
+        now = time.time()
+        if now - _alert_cooldowns.get(pattern, 0) < 300:
+            logging.info(f"[ALERT] Suppressed duplicate for pattern '{pattern}' (cooldown)")
+            return
+        _alert_cooldowns[pattern] = now
         alerts.append(line)
         print(f"\n  [ALERT] Failure detected in log: {line}\n")
         alert_id = None

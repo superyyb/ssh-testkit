@@ -48,6 +48,44 @@ class TestClassifyResult:
         assert classify_result(out_fail) == "FAIL"
 
 
+# ── Real-world patterns from test_plan.yaml ───────────────────────────────
+
+class TestRealWorldPatterns:
+
+    def test_disk_low_usage_passes(self, make_output):
+        out = make_output(stdout="22%")
+        assert classify_result(out, r"^[0-7]", r"^([89][0-9]|100)%") == "PASS"
+
+    def test_disk_high_usage_fails(self, make_output):
+        out = make_output(stdout="85%")
+        assert classify_result(out, r"^[0-7]", r"^([89][0-9]|100)%") == "FAIL"
+
+    def test_disk_single_digit_edge_case(self, make_output):
+        # "8%" — first char not in [0-7], and [89][0-9] requires two digits → UNKNOWN
+        out = make_output(stdout="8%")
+        assert classify_result(out, r"^[0-7]", r"^([89][0-9]|100)%") == "UNKNOWN"
+
+    def test_http_200_passes(self, make_output):
+        out = make_output(stdout="200")
+        assert classify_result(out, r"^200$", r"^[45]\d\d") == "PASS"
+
+    def test_http_404_fails(self, make_output):
+        out = make_output(stdout="404")
+        assert classify_result(out, r"^200$", r"^[45]\d\d") == "FAIL"
+
+    def test_http_500_fails(self, make_output):
+        out = make_output(stdout="500")
+        assert classify_result(out, r"^200$", r"^[45]\d\d") == "FAIL"
+
+    def test_json_db_connected_passes(self, make_output):
+        out = make_output(stdout='{"db": "connected", "service": "running"}')
+        assert classify_result(out, r'"db":\s*"connected"', r'"db":\s*"unreachable"') == "PASS"
+
+    def test_json_db_unreachable_fails(self, make_output):
+        out = make_output(stdout='{"db": "unreachable", "service": "running"}')
+        assert classify_result(out, r'"db":\s*"connected"', r'"db":\s*"unreachable"') == "FAIL"
+
+
 # ── extract_value ──────────────────────────────────────────────────────────
 
 class TestExtractValue:

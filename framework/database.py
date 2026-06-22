@@ -58,6 +58,12 @@ def init_schema():
                     ai_analysis  TEXT
                 )
             """)
+            # Mark any runs left incomplete by a previous crash
+            cur.execute("""
+                UPDATE test_runs
+                SET finished_at = started_at, duration_s = -1
+                WHERE finished_at IS NULL
+            """)
         conn.commit()
     logging.info("[DB] Schema initialized")
 

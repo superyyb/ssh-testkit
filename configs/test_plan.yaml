@@ -20,20 +20,22 @@ monitor:
     - "ERROR"
     - "FATAL"
     - "Exception"
+    - "Traceback \\(most recent call last\\)"
+    - "took [1-9]\\d{3,} ms"
   interval: 2
  
 tests:
   # ── System health ────────────────────────────────────────────────────────
   - name: Check system uptime
     command: uptime
-    pass_regex: "load average"
-    fail_regex: "error|failed"
+    pass_regex: "load average: [0-4]\\."
+    fail_regex: "load average: [5-9]\\."
     timeout: 10
  
   - name: Check disk usage
-    command: df -h
-    pass_regex: "/"
-    fail_regex: "100%|error"
+    command: "df / | tail -1 | awk '{print $5}'"
+    pass_regex: "^[0-7]"
+    fail_regex: "^([89][0-9]|100)%"
     timeout: 10
  
   # ── Service validation ───────────────────────────────────────────────────
@@ -50,17 +52,17 @@ tests:
     timeout: 10
  
   # ── API response validation ──────────────────────────────────────────────
-  - name: Check API health endpoint
-    command: curl -s http://localhost:8080/health
-    pass_regex: "ok"
-    fail_regex: "refused|error|timeout"
+  - name: Check API returns HTTP 200
+    command: curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health
+    pass_regex: "^200$"
+    fail_regex: "^[45]\\d\\d"
     timeout: 10
     retries: 2
  
   - name: Check API status endpoint
     command: curl -s http://localhost:8080/status
-    pass_regex: "connected"
-    fail_regex: "unreachable|disconnected"
+    pass_regex: '"db":\s*"connected"'
+    fail_regex: '"db":\s*"unreachable"'
     timeout: 10
     retries: 2
 

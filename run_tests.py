@@ -139,13 +139,13 @@ def run_once(config, args, run_index=None):
 
             results = runner.run_all(max_workers=max_workers, on_result=on_result)
 
-    # Wait up to 30s per pending AI analysis; skip if it takes too long
-    for f in _ai_futures:
-        try:
-            f.result(timeout=30)
-        except Exception as e:
-            logging.warning(f"[AI] Analysis task failed or timed out: {e}")
-    _ai_executor.shutdown(wait=True)
+        # Wait here while client is still open — AI workers need it for SSH log reads
+        for f in _ai_futures:
+            try:
+                f.result(timeout=30)
+            except Exception as e:
+                logging.warning(f"[AI] Analysis task failed or timed out: {e}")
+        _ai_executor.shutdown(wait=True)
 
     if _db_run_id:
         try:

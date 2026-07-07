@@ -1,3 +1,4 @@
+import time
 import paramiko
 import logging
 
@@ -10,17 +11,28 @@ class SSHClient:
         self.password = password
         self.client = None
 
-    def connect(self):
-        self.client = paramiko.SSHClient()
-        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.connect(
-            hostname=self.host,
-            port=self.port,
-            username=self.username,
-            password=self.password,
-            timeout=10
-        )
-        logging.info(f"Connected to {self.host}:{self.port} as {self.username}")
+    def connect(self, retries=3):
+        last_err = None
+        for attempt in range(retries):
+            try:
+                self.client = paramiko.SSHClient()
+                self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                self.client.connect(
+                    hostname=self.host,
+                    port=self.port,
+                    username=self.username,
+                    password=self.password,
+                    timeout=10
+                )
+                logging.info(f"Connected to {self.host}:{self.port} as {self.username}")
+                return
+            except Exception as e:
+                last_err = e
+                if attempt < retries - 1:
+                    wait = 2 ** attempt  # 1s, 2s
+                    logging.warning(f"SSH connect failed (attempt {attempt + 1}/{retries}): {e} — retrying in {wait}s")
+                    time.sleep(wait)
+        raise RuntimeError(f"SSH connection to {self.host}:{self.port} failed after {retries} attempts: {last_err}")
 
     def run_command(self, command, timeout=30):
         if self.client is None:

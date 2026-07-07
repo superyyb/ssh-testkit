@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import time
-import threading
 import yaml
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -210,17 +209,15 @@ def run_with_monitor(config, args):
     # prevents API rate limits and resource exhaustion on repeated failures
     _ai_executor = ThreadPoolExecutor(max_workers=3)
     _ai_futures  = []
-    _ssh_lock    = threading.Lock()
     llm = None
     if os.getenv("ANTHROPIC_API_KEY"):
         from langchain_anthropic import ChatAnthropic
         llm = ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022"), temperature=0)
  
     def _run_ai_analysis(alert_line, alert_id=None):
-        """Run in a background thread — reuses monitor_client with a lock to avoid race conditions."""
+        """Run in a background thread — Paramiko opens an independent channel per call, no lock needed."""
         try:
-            with _ssh_lock:
-                result = monitor_client.run_command(f"tail -n 50 {log_path}", timeout=10)
+            result = monitor_client.run_command(f"tail -n 50 {log_path}", timeout=10)
             log_context = result.get('stdout', '').strip() or '(no log output available)'
             response = llm.invoke(
                 f"A failure was detected in a device log. Analyze the following log and explain:\n"

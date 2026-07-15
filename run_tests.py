@@ -238,7 +238,34 @@ def run_with_monitor(config, args):
         except Exception as e:
             logging.exception(f"[AI Analysis] Failed: {e}")
             print(f"  [AI Analysis] Failed: {e}\n")
- 
+
+    def _run_ai_analysis_for_test(test_name, result_id=None):
+        """AI analysis for a test failure — uses monitor_client, runs in background AI worker."""
+        try:
+            try:
+                log_data    = monitor_client.run_command(f"tail -n 50 {log_path}", timeout=10)
+                log_context = log_data.get("stdout", "").strip() or "(no log output available)"
+            except Exception as ssh_err:
+                log_context = f"(log fetch failed: {ssh_err})"
+            response = llm.invoke(
+                f"A test failed. Analyze the following device log and explain:\n"
+                f"1. What failed and why\n"
+                f"2. How severe is it\n"
+                f"3. Suggested fix\n\n"
+                f"Failed test: {test_name}\n\n"
+                f"Log context:\n{log_context}"
+            )
+            logging.warning(f"[AI Analysis for '{test_name}']\n{response.content}")
+            print(f"\n  [AI Analysis for '{test_name}']\n{response.content}\n")
+            if _db_run_id and result_id:
+                try:
+                    from framework.database import update_result_ai
+                    update_result_ai(result_id, response.content)
+                except Exception as db_err:
+                    logging.warning(f"[DB] update_result_ai failed: {db_err}")
+        except Exception as e:
+            logging.exception(f"[AI Analysis] Failed for '{test_name}': {e}")
+
     def _alert_fingerprint(line, pattern):
         # Strip leading timestamp so same error at different times shares one fingerprint
         cleaned = re.sub(r'^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}[\.\d]*\s*', '', line).strip()
@@ -280,15 +307,20 @@ def run_with_monitor(config, args):
     )
  
     def on_result(result):
+        result_id = None
         if _db_run_id:
             try:
                 from framework.database import save_test_result
-                save_test_result(_db_run_id, result)
+                result_id = save_test_result(_db_run_id, result)
             except Exception as db_err:
                 logging.warning(f"[DB] save_test_result failed: {db_err}")
-        # Register in shared dedup dict so log alerts for the same failure are suppressed
-        if result["status"] == "FAIL":
-            _recent_ai_keys[f"test::{result['name']}"] = time.time()
+        if result["status"] == "FAIL" and llm:
+            logging.warning(
+                f"[on_result] '{result['name']}' FAILED — triggering async AI log analysis"
+            )
+            _ai_futures.append(
+                _ai_executor.submit(_run_ai_analysis_for_test, result["name"], result_id)
+            )
 
     try:
         print(f"[Concurrent mode] Running tests + monitoring {log_path}\n")

@@ -7,3 +7,4 @@ langchain-anthropic
 anthropic
 python-dotenv
 psycopg2-binary
+redis  # optional — only needed when REDIS_HOST is set

@@ -272,17 +272,16 @@ def run_with_monitor(config, args):
         return f"{pattern}::{cleaned[:60]}"
 
     _DEDUP_WINDOW = 60  # seconds — long enough to suppress storm, short enough to catch recovery+crash
-    _recent_ai_keys = {}  # shared by on_result and on_alert; fingerprint -> last triggered time
+    from framework.cache import build_cache_backend
+    _dedup_cache = build_cache_backend()
 
     alerts = []
 
     def on_alert(line, pattern):
-        now = time.time()
         key = _alert_fingerprint(line, pattern)
-        if now - _recent_ai_keys.get(key, 0) < _DEDUP_WINDOW:
+        if not _dedup_cache.set_if_absent(key, _DEDUP_WINDOW):
             logging.info(f"[ALERT] Suppressed duplicate (cooldown): {key}")
             return
-        _recent_ai_keys[key] = now
         alerts.append(line)
         print(f"\n  [ALERT] Failure detected in log: {line}\n")
         alert_id = None

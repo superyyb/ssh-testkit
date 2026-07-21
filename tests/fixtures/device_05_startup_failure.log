@@ -1,0 +1,11 @@
+2026-07-20 08:00:00,001 [INFO] Initializing application on port 8080
+2026-07-20 08:00:00,114 [INFO] Attempting database connection at postgres:5432
+2026-07-20 08:00:02,003 [ERROR] Database connection failed on startup: could not connect to server: Connection refused
+	Is the server running on host "postgres" (172.18.0.3) and accepting
+	TCP/IP connections on port 5432?
+2026-07-20 08:00:02,004 [ERROR] Retrying database connection (attempt 2/3)...
+2026-07-20 08:00:04,441 [ERROR] Database connection failed on startup: could not connect to server: Connection refused
+2026-07-20 08:00:04,442 [ERROR] Retrying database connection (attempt 3/3)...
+2026-07-20 08:00:06,003 [ERROR] Database connection failed on startup: could not connect to server: Connection refused
+2026-07-20 08:00:06,004 [CRITICAL] FATAL: All database connection attempts exhausted. Application cannot start without a database connection.
+2026-07-20 08:00:06,005 [CRITICAL] FATAL: Shutting down. Check that the 'postgres' service is healthy before restarting.

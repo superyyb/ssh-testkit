@@ -1,0 +1,17 @@
+2026-07-20 14:00:00,001 [INFO] Server startup complete on port 8080
+2026-07-20 14:00:01,441 [INFO] Health check requested
+2026-07-20 14:00:01,558 [INFO] Metrics requested
+2026-07-20 14:00:03,002 [INFO] Status check requested
+2026-07-20 14:00:05,441 [INFO] Health check requested
+2026-07-20 14:00:07,003 [INFO] Metrics requested
+2026-07-20 14:00:09,114 [INFO] Health check requested
+2026-07-20 14:00:11,002 [WARNING] GET /metrics took 1203 ms (threshold: 500ms) — possible memory pressure
+2026-07-20 14:00:13,441 [INFO] Health check requested
+2026-07-20 14:00:15,003 [WARNING] GET /status took 1847 ms (threshold: 500ms) — database response slow
+2026-07-20 14:00:17,114 [WARNING] GET /metrics took 2341 ms (threshold: 500ms) — possible memory pressure
+2026-07-20 14:00:17,116 [INFO] Metrics requested
+2026-07-20 14:00:19,441 [WARNING] GET /metrics took 3102 ms (threshold: 500ms) — possible memory pressure
+2026-07-20 14:00:21,003 [INFO] Health check requested
+2026-07-20 14:00:23,002 [WARNING] GET /status took 4418 ms (threshold: 500ms) — database response slow
+2026-07-20 14:00:25,441 [INFO] Metrics requested
+2026-07-20 14:00:27,003 [WARNING] GET /metrics took 5203 ms (threshold: 500ms) — possible memory pressure

@@ -1,0 +1,28 @@
+2026-07-20 10:15:00,001 [INFO] Server startup complete on port 8080
+2026-07-20 10:15:01,334 [INFO] Health check requested
+2026-07-20 10:15:02,003 [INFO] Metrics requested
+2026-07-20 10:15:03,441 [INFO] Status check requested
+2026-07-20 10:15:04,882 [INFO] Metrics requested
+2026-07-20 10:15:06,001 [ERROR] Unhandled exception during request processing
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 77, in handle
+    await route.handle(scope, receive, send)
+  File "/home/testuser/server.py", line 75, in metrics
+    "cpu_percent": psutil.cpu_percent(interval=0.1),
+  File "/usr/local/lib/python3.11/site-packages/psutil/__init__.py", line 1829, in cpu_percent
+    raise RuntimeError("could not read /proc/stat: [Errno 13] Permission denied")
+RuntimeError: could not read /proc/stat: [Errno 13] Permission denied
+2026-07-20 10:15:06,003 [ERROR] 500 Internal Server Error: GET /metrics
+2026-07-20 10:15:08,221 [INFO] Health check requested
+2026-07-20 10:15:10,004 [INFO] Status check requested
+2026-07-20 10:15:12,441 [INFO] Metrics requested
+2026-07-20 10:15:12,443 [ERROR] Unhandled exception during request processing
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 77, in handle
+    await route.handle(scope, receive, send)
+  File "/home/testuser/server.py", line 75, in metrics
+    "cpu_percent": psutil.cpu_percent(interval=0.1),
+  File "/usr/local/lib/python3.11/site-packages/psutil/__init__.py", line 1829, in cpu_percent
+    raise RuntimeError("could not read /proc/stat: [Errno 13] Permission denied")
+RuntimeError: could not read /proc/stat: [Errno 13] Permission denied
+2026-07-20 10:15:12,445 [ERROR] 500 Internal Server Error: GET /metrics

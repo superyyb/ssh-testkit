@@ -4,8 +4,33 @@ Uses a mock SSH client so no real SSH connection is needed.
 """
 import time
 import pytest
+from pathlib import Path
 from unittest.mock import MagicMock
 from framework.log_monitor import LogMonitor
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+# fail_patterns from test_plan.yaml — used in fixture tests
+ALL_PATTERNS = [
+    "ERROR",
+    "FATAL",
+    "Exception",
+    r"Traceback \(most recent call last\)",
+    r"took [1-9]\d{3,} ms",
+]
+
+
+def fixture_monitor(fixture_name, patterns, callback, interval=0.05):
+    """Build a LogMonitor backed by a device fixture file."""
+    ssh = MagicMock()
+    ssh.run_command.return_value = {"stdout": (FIXTURES / fixture_name).read_text()}
+    return LogMonitor(
+        ssh_client=ssh,
+        log_path="/fake/app.log",
+        fail_patterns=patterns,
+        alert_callback=lambda line, pattern: callback(line),
+        interval=interval,
+    )
 
 
 def make_monitor(lines, patterns, callback, interval=0.05):
@@ -130,3 +155,91 @@ class TestStartStop:
         count_at_stop = len(alerts)
         time.sleep(0.2)  # wait after stop
         assert len(alerts) == count_at_stop  # no new alerts after stop
+
+
+# ── Realistic fixture tests ────────────────────────────────────────────────────
+
+class TestRealisticFixtures:
+    """Feed real device log fixtures to LogMonitor — verifies pattern matching
+    works against multi-line production-format logs, not just single-line stubs."""
+
+    def test_no_alert_on_healthy_log(self):
+        """device_01: all INFO lines — none of the production fail_patterns fire."""
+        alerts = []
+        monitor = fixture_monitor("device_01_healthy_operation.log", ALL_PATTERNS, alerts.append)
+        monitor.start()
+        time.sleep(0.2)
+        monitor.stop()
+        assert alerts == []
+
+    def test_detects_exception_buried_in_normal_traffic(self):
+        """device_02: ERROR and Traceback appear mid-log, surrounded by normal INFO lines."""
+        alerts = []
+        monitor = fixture_monitor(
+            "device_02_unhandled_exception.log",
+            ["Exception"],
+            alerts.append,
+        )
+        monitor.start()
+        time.sleep(0.2)
+        monitor.stop()
+        assert len(alerts) >= 1
+        assert any("exception" in a.lower() for a in alerts)
+
+    def test_detects_traceback_pattern(self):
+        """device_02: the Traceback pattern (with literal parens) matches correctly."""
+        alerts = []
+        monitor = fixture_monitor(
+            "device_02_unhandled_exception.log",
+            [r"Traceback \(most recent call last\)"],
+            alerts.append,
+        )
+        monitor.start()
+        time.sleep(0.2)
+        monitor.stop()
+        assert len(alerts) >= 1
+        assert any("Traceback" in a for a in alerts)
+
+    def test_detects_error_in_db_lost_log(self):
+        """device_03: repeated ERROR lines from DB reconnect attempts all fire alerts,
+        but seen-line dedup means each unique line only fires once."""
+        alerts = []
+        monitor = fixture_monitor("device_03_db_connection_lost.log", ["ERROR"], alerts.append)
+        monitor.start()
+        time.sleep(0.3)
+        monitor.stop()
+        assert len(alerts) >= 1
+        assert all("ERROR" in a for a in alerts)
+
+    def test_detects_slow_requests(self):
+        """device_04: 'took XXXX ms' pattern fires on each unique slow-request line."""
+        alerts = []
+        monitor = fixture_monitor(
+            "device_04_slow_request_storm.log",
+            [r"took [1-9]\d{3,} ms"],
+            alerts.append,
+        )
+        monitor.start()
+        time.sleep(0.2)
+        monitor.stop()
+        assert len(alerts) >= 1
+        assert all("took" in a and "ms" in a for a in alerts)
+
+    def test_detects_fatal_on_startup_failure(self):
+        """device_05: FATAL lines appear when DB is unreachable at startup."""
+        alerts = []
+        monitor = fixture_monitor("device_05_startup_failure.log", ["FATAL"], alerts.append)
+        monitor.start()
+        time.sleep(0.2)
+        monitor.stop()
+        assert len(alerts) >= 1
+        assert all("FATAL" in a for a in alerts)
+
+    def test_warning_lines_do_not_trigger_error_pattern(self):
+        """device_03: WARNING lines (DB retry notice) must not match the ERROR pattern."""
+        alerts = []
+        monitor = fixture_monitor("device_03_db_connection_lost.log", ["ERROR"], alerts.append)
+        monitor.start()
+        time.sleep(0.2)
+        monitor.stop()
+        assert not any("WARNING" in a and "ERROR" not in a for a in alerts)
